@@ -268,5 +268,10 @@ def process_text():
 # Ejecutar servidor
 # --------------------------
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    from dotenv import load_dotenv
+    from os import getenv
+
+    load_dotenv()  # carga las variables .env (en local o en el servidor)
+    port = int(getenv("PORT", 5000))  # Railway asigna un puerto dinámico
+    app.run(host="0.0.0.0", port=port, debug=True) #es publica
 
