@@ -99,6 +99,10 @@ def call_minimax_stt(audio_file):
 # Función: LLM (Mistral)
 # --------------------------
 def call_groq_llm(user_text):
+    """
+    Envía el texto del usuario a Groq (modelo LLaMA 3.3) y devuelve
+    solo una respuesta breve en español, sin formato JSON.
+    """
     try:
         from groq import Groq
         client = Groq()
@@ -109,10 +113,9 @@ def call_groq_llm(user_text):
                 {
                     "role": "system",
                     "content": (
-                        "Eres un asistente turístico de la plataforma PerúGo. "
-                        "Responde en formato JSON con campos: "
-                        "{reply, intent, action, entities {lugar, fecha}}. "
-                        "Tu respuesta debe ser breve, clara y en español."
+                        "Eres un asistente turístico de PerúGo. "
+                        "Responde siempre en español de forma breve, amable y natural. "
+                        "No uses JSON ni estructuras, solo texto plano."
                     )
                 },
                 {"role": "user", "content": user_text}
@@ -120,27 +123,11 @@ def call_groq_llm(user_text):
             temperature=0.5
         )
 
-        content = completion.choices[0].message.content
-        return content  # <-- lo dejamos tal cual, es JSON como string
+        return completion.choices[0].message.content.strip()
 
     except Exception as e:
         print("Error en Groq:", e)
-        return json.dumps({"reply": "Error procesando solicitud.", "intent": "none", "action": "none", "entities": {}})
-
-def extract_reply_from_groq(content):
-    """
-    Procesa la respuesta del modelo Groq.
-    Si es JSON válido, devuelve solo el campo 'reply'.
-    Si no lo es, devuelve el contenido tal cual.
-    """
-    try:
-        data = json.loads(content)
-        if isinstance(data, dict) and "reply" in data:
-            return data["reply"]
-    except Exception:
-        pass
-    return str(content).strip()
-
+        return "Error procesando solicitud con Groq."
 
 # --------------------------
 # Función: MiniMax TTS
@@ -227,10 +214,9 @@ def process_text():
     if not user_text:
         return jsonify({"error": "No se recibió texto"}), 400
 
-    llm_output = call_groq_llm(user_text)
-    llm_text = extract_reply_from_groq(llm_output)
+    llm_text = call_groq_llm(user_text)
 
-    # (opcional) convertir a audio con MiniMax
+    # (Opcional) convertir respuesta a audio
     tts_audio = call_minimax_tts(llm_text)
     audio_base64 = base64.b64encode(tts_audio).decode("utf-8") if tts_audio else None
 
