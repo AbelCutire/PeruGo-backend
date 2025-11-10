@@ -99,56 +99,47 @@ def call_minimax_stt(audio_file):
 # Función: LLM (Mistral)
 # --------------------------
 def call_groq_llm(user_text):
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        print("⚠️ Falta GROQ_API_KEY en entorno")
-        return {"reply": "No hay clave de API configurada para Groq.", "action": "none"}
-
-    # Inicializa el cliente Groq oficial
-    client = Groq(api_key=api_key)
-
-    # Prompt estructurado para el asistente
-    prompt = f'''
-Tu rol: asistente turístico peruano para la plataforma PerúGo.
-El usuario dijo: "{user_text}"
-
-Devuelve SOLO JSON con:
-{{
-  "reply": "Respuesta breve al usuario en español",
-  "intent": "intención detectada (buscar, mostrar perfil, reservar, etc.)",
-  "action": "acción backend (show_profile, search, open_map, none)",
-  "entities": {{"lugar": "...", "fecha": "..."}}
-}}
-    '''
-
     try:
-        # Llamada al endpoint chat.completions.create
-        chat_completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",   # modelo Groq recomendado
+        from groq import Groq
+        client = Groq()
+
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "Eres un asistente experto en turismo del Perú."},
-                {"role": "user", "content": prompt},
+                {
+                    "role": "system",
+                    "content": (
+                        "Eres un asistente turístico de la plataforma PerúGo. "
+                        "Responde en formato JSON con campos: "
+                        "{reply, intent, action, entities {lugar, fecha}}. "
+                        "Tu respuesta debe ser breve, clara y en español."
+                    )
+                },
+                {"role": "user", "content": user_text}
             ],
-            temperature=0.5,
-            max_tokens=400,
+            temperature=0.5
         )
 
-        # Extrae el contenido del mensaje generado
-        content = chat_completion.choices[0].message.content.strip()
-
-        # Intenta decodificar JSON (si el modelo responde en JSON)
-        try:
-            parsed = json.loads(content)
-            if "reply" in parsed:
-                return parsed
-            else:
-                return {"reply": content, "action": "none"}
-        except Exception:
-            return {"reply": content, "action": "none"}
+        content = completion.choices[0].message.content
+        return content  # <-- lo dejamos tal cual, es JSON como string
 
     except Exception as e:
-        print("❌ Error en Groq:", e)
-        return {"reply": "Error procesando con Groq", "action": "none"}
+        print("Error en Groq:", e)
+        return json.dumps({"reply": "Error procesando solicitud.", "intent": "none", "action": "none", "entities": {}})
+
+def extract_reply_from_groq(content):
+    """
+    Procesa la respuesta del modelo Groq.
+    Si es JSON válido, devuelve solo el campo 'reply'.
+    Si no lo es, devuelve el contenido tal cual.
+    """
+    try:
+        data = json.loads(content)
+        if isinstance(data, dict) and "reply" in data:
+            return data["reply"]
+    except Exception:
+        pass
+    return str(content).strip()
 
 
 # --------------------------
@@ -237,32 +228,16 @@ def process_text():
         return jsonify({"error": "No se recibió texto"}), 400
 
     llm_output = call_groq_llm(user_text)
+    llm_text = extract_reply_from_groq(llm_output)
 
-    # ✅ Manejo robusto: sea dict o string JSON, siempre se extrae "reply"
-    llm_text = "No se pudo generar respuesta."
-
-    if isinstance(llm_output, dict):
-        llm_text = llm_output.get("reply", "No se pudo generar respuesta.")
-    elif isinstance(llm_output, str):
-        try:
-            parsed = json.loads(llm_output)
-            llm_text = parsed.get("reply", llm_output)
-        except Exception:
-            llm_text = llm_output
-    else:
-        llm_text = str(llm_output)
-
-    # ✅ Convertimos el texto del LLM a audio
+    # (opcional) convertir a audio con MiniMax
     tts_audio = call_minimax_tts(llm_text)
     audio_base64 = base64.b64encode(tts_audio).decode("utf-8") if tts_audio else None
 
-    # ✅ Respuesta limpia para el frontend
     return jsonify({
         "text_response": llm_text,
         "audio_base64": audio_base64
     })
-
-
 
 # --------------------------
 # Ejecutar servidor
