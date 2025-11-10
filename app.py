@@ -14,6 +14,10 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+# ✅ Importamos el blueprint RDF
+from generate_rdf import rdf_bp
+app.register_blueprint(rdf_bp)
+
 MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 
@@ -26,6 +30,7 @@ MISTRAL_BASE = "https://api.mistral.ai/v1"
 @app.route('/')
 def home():
     return jsonify({"message": "Servidor backend operativo."})
+
 
 # --------------------------
 # 1️⃣ Ruta STS: recibe audio → LLM → audio respuesta
@@ -45,16 +50,12 @@ def speech_to_speech():
 
     audio_file = request.files['audio']
 
-    # --------------------------------
-    # 1) STT: Enviar a MiniMax para transcripción
-    # --------------------------------
+    # 1️⃣ STT
     stt_text = call_minimax_stt(audio_file)
     if not stt_text:
         return jsonify({"error": "Fallo en transcripción"}), 500
 
-    # --------------------------------
-    # 2) Procesamiento con Mistral (LLM)
-    # --------------------------------
+    # 2️⃣ LLM
     llm_output = call_mistral_llm(stt_text)
     if isinstance(llm_output, dict):
         llm_text = llm_output.get("reply", str(llm_output))
@@ -62,21 +63,15 @@ def speech_to_speech():
         llm_text = str(llm_output)
     action = llm_output.get("action", "none")
 
-    # --------------------------------
-    # 3) Generar audio con MiniMax TTS
-    # --------------------------------
+    # 3️⃣ TTS
     tts_audio = call_minimax_tts(llm_text)
-
-    # Codificar audio en base64 para respuesta directa
     audio_base64 = base64.b64encode(tts_audio).decode('utf-8') if tts_audio else None
 
-    # --------------------------------
-    # 4) Respuesta al frontend
-    # --------------------------------
+    # 4️⃣ Respuesta
     return jsonify({
         "stt_text": stt_text,
         "llm_response": llm_text,
-        "action": action,  # por ejemplo "show_profile", "search", etc.
+        "action": action,
         "audio_base64": audio_base64
     })
 
@@ -85,9 +80,6 @@ def speech_to_speech():
 # Función: MiniMax STT
 # --------------------------
 def call_minimax_stt(audio_file):
-    """
-    Envía un archivo de audio a MiniMax Speech-02 (STT)
-    """
     url = f"{MINIMAX_BASE}/speech:transcribe"
     headers = {"Authorization": f"Bearer {MINIMAX_API_KEY}"}
     files = {"file": (audio_file.filename, audio_file, audio_file.mimetype)}
@@ -106,16 +98,12 @@ def call_minimax_stt(audio_file):
 # Función: LLM (Mistral)
 # --------------------------
 def call_mistral_llm(user_text):
-    """
-    Envía texto a Mistral (modelo francés) y pide análisis semántico.
-    """
     url = f"{MISTRAL_BASE}/chat/completions"
     headers = {
         "Authorization": f"Bearer {MISTRAL_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    # Prompt diseñado para NLU estructurado (intención, respuesta, acción)
     prompt = f"""
 Tu rol: asistente turístico francés para la plataforma PerúGo.
 El usuario dijo: "{user_text}"
@@ -130,7 +118,7 @@ Devuelve SOLO JSON con:
     """
 
     body = {
-        "model": "mistral-large-latest",  # o "mistral-small" según costo
+        "model": "mistral-large-latest",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.5,
         "max_tokens": 200
@@ -142,10 +130,8 @@ Devuelve SOLO JSON con:
         raw = r.json()
         content = raw["choices"][0]["message"]["content"]
 
-        # Intentar decodificar JSON generado
         try:
-            parsed = json.loads(content)
-            return parsed
+            return json.loads(content)
         except:
             return {"reply": content, "action": "none"}
 
@@ -158,16 +144,11 @@ Devuelve SOLO JSON con:
 # Función: MiniMax TTS
 # --------------------------
 def call_minimax_tts(text):
-    """
-    Nueva versión asíncrona de TTS con MiniMax (t2a_async_v2)
-    Retorna bytes de audio MP3
-    """
     api_key = MINIMAX_API_KEY
     if not api_key:
         print("⚠️ No se encontró MINIMAX_API_KEY en .env")
         return None
 
-    # Paso 1️⃣ - Crear tarea de generación de voz
     create_url = "https://api.minimax.io/v1/t2a_async_v2"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -178,7 +159,7 @@ def call_minimax_tts(text):
         "text": text,
         "language_boost": "auto",
         "voice_setting": {
-            "voice_id": "English_expressive_narrator",  # cámbiala si necesitas voz española
+            "voice_id": "English_expressive_narrator",
             "speed": 1,
             "vol": 10,
             "pitch": 1
@@ -200,10 +181,9 @@ def call_minimax_tts(text):
             print("⚠️ No se recibió task_id de MiniMax.")
             return None
 
-        # Paso 2️⃣ - Consultar progreso hasta que termine
         status_url = f"https://api.minimax.io/v1/query/t2a_async_query_v2?task_id={task_id}"
 
-        for _ in range(10):  # hasta 10 intentos (~10 segundos)
+        for _ in range(10):
             time.sleep(1)
             s = requests.get(status_url, headers=headers)
             s.raise_for_status()
@@ -215,7 +195,6 @@ def call_minimax_tts(text):
                     print("⚠️ No se obtuvo file_id del resultado.")
                     return None
 
-                # Paso 3️⃣ - Descargar el archivo de audio
                 file_url = f"https://api.minimax.io/v1/files/retrieve_content?file_id={file_id}"
                 audio_res = requests.get(file_url, headers=headers)
                 audio_res.raise_for_status()
@@ -234,30 +213,24 @@ def call_minimax_tts(text):
         print("Error en TTS:", e)
         return None
 
+
 # --------------------------
 # 2️⃣ Ruta: /process - texto plano → LLM → TTS
 # --------------------------
 @app.route('/process', methods=['POST'])
 def process_text():
-    """
-    Recibe texto del frontend, lo envía a Mistral para procesarlo,
-    y genera una respuesta hablada opcionalmente con MiniMax TTS.
-    """
     data = request.get_json()
     user_text = data.get("text", "").strip()
 
     if not user_text:
         return jsonify({"error": "No se recibió texto"}), 400
 
-    # 1) Llama a Mistral para procesar el texto
     llm_output = call_mistral_llm(user_text)
     llm_text = llm_output.get("reply", "No se pudo generar respuesta.")
 
-    # 2) Genera audio con MiniMax TTS (opcional)
     tts_audio = call_minimax_tts(llm_text)
     audio_base64 = base64.b64encode(tts_audio).decode("utf-8") if tts_audio else None
 
-    # 3) Devuelve respuesta JSON al frontend
     return jsonify({
         "text_response": llm_text,
         "audio_base64": audio_base64
@@ -268,10 +241,6 @@ def process_text():
 # Ejecutar servidor
 # --------------------------
 if __name__ == '__main__':
-    from dotenv import load_dotenv
-    from os import getenv
-
-    load_dotenv()  # carga las variables .env (en local o en el servidor)
-    port = int(getenv("PORT", 5000))  # Railway asigna un puerto dinámico
-    app.run(host="0.0.0.0", port=port, debug=True) #es publica
-
+    load_dotenv()
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
