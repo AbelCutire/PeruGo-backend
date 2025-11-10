@@ -19,10 +19,10 @@ from generate_rdf import rdf_bp
 app.register_blueprint(rdf_bp)
 
 MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+#MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 
 MINIMAX_BASE = "https://api.minimax.io/v1/text/chatcompletion_v2"
-MISTRAL_BASE = "https://api.mistral.ai/v1"
+#MISTRAL_BASE = "https://api.mistral.ai/v1"
 
 # --------------------------
 # Home simple
@@ -56,7 +56,7 @@ def speech_to_speech():
         return jsonify({"error": "Fallo en transcripción"}), 500
 
     # 2️⃣ LLM
-    llm_output = call_mistral_llm(stt_text)
+    llm_output = call_groq_llm(stt_text)
     if isinstance(llm_output, dict):
         llm_text = llm_output.get("reply", str(llm_output))
     else:
@@ -97,15 +97,21 @@ def call_minimax_stt(audio_file):
 # --------------------------
 # Función: LLM (Mistral)
 # --------------------------
-def call_mistral_llm(user_text):
-    url = f"{MISTRAL_BASE}/chat/completions"
+def call_groq_llm(user_text):
+    import requests, json, os
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        print("⚠️ Falta GROQ_API_KEY en entorno")
+        return {"reply": "No hay clave de API configurada para Groq.", "action": "none"}
+
     headers = {
-        "Authorization": f"Bearer {MISTRAL_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
     prompt = f"""
-Tu rol: asistente turístico francés para la plataforma PerúGo.
+Tu rol: asistente turístico peruano para la plataforma PerúGo.
 El usuario dijo: "{user_text}"
 
 Devuelve SOLO JSON con:
@@ -117,27 +123,30 @@ Devuelve SOLO JSON con:
 }}
     """
 
-    body = {
-        "model": "mistral-large-latest",
-        "messages": [{"role": "user", "content": prompt}],
+    data = {
+        "model": "mixtral-8x7b-32768",
+        "messages": [
+            {"role": "system", "content": "Eres un asistente experto en turismo del Perú."},
+            {"role": "user", "content": prompt}
+        ],
         "temperature": 0.5,
-        "max_tokens": 200
+        "max_tokens": 300
     }
 
     try:
-        r = requests.post(url, headers=headers, json=body)
+        r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                          headers=headers, json=data)
         r.raise_for_status()
-        raw = r.json()
-        content = raw["choices"][0]["message"]["content"]
+        response = r.json()
+        content = response["choices"][0]["message"]["content"]
 
         try:
             return json.loads(content)
-        except:
+        except Exception:
             return {"reply": content, "action": "none"}
-
     except Exception as e:
-        print("Error en Mistral:", e)
-        return {"reply": "Error procesando con Mistral", "action": "none"}
+        print("Error en Groq:", e)
+        return {"reply": "Error procesando con Groq", "action": "none"}
 
 
 # --------------------------
@@ -225,7 +234,7 @@ def process_text():
     if not user_text:
         return jsonify({"error": "No se recibió texto"}), 400
 
-    llm_output = call_mistral_llm(user_text)
+    llm_output = call_groq_llm(user_text)
     llm_text = llm_output.get("reply", "No se pudo generar respuesta.")
 
     tts_audio = call_minimax_tts(llm_text)
