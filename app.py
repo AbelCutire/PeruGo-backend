@@ -6,6 +6,7 @@ import requests
 import json
 import base64
 import time
+from groq import Groq
 
 # --------------------------
 # Configuración base
@@ -98,16 +99,16 @@ def call_minimax_stt(audio_file):
 # Función: LLM (Mistral)
 # --------------------------
 def call_groq_llm(user_text):
-    from groq import Groq
-    import os, json
-
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        return {"reply": "Falta GROQ_API_KEY", "action": "none"}
+        print("⚠️ Falta GROQ_API_KEY en entorno")
+        return {"reply": "No hay clave de API configurada para Groq.", "action": "none"}
 
+    # Inicializa el cliente Groq oficial
     client = Groq(api_key=api_key)
 
-    prompt = f"""
+    # Prompt estructurado para el asistente
+    prompt = f'''
 Tu rol: asistente turístico peruano para la plataforma PerúGo.
 El usuario dijo: "{user_text}"
 
@@ -118,30 +119,36 @@ Devuelve SOLO JSON con:
   "action": "acción backend (show_profile, search, open_map, none)",
   "entities": {{"lugar": "...", "fecha": "..."}}
 }}
-    """
+    '''
 
     try:
+        # Llamada al endpoint chat.completions.create
         chat_completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",   # modelo Groq recomendado
             messages=[
                 {"role": "system", "content": "Eres un asistente experto en turismo del Perú."},
                 {"role": "user", "content": prompt},
             ],
-            model="llama-3.3-70b-versatile",  # Modelo más reciente y potente
             temperature=0.5,
             max_tokens=400,
         )
 
-        content = chat_completion.choices[0].message.content
+        # Extrae el contenido del mensaje generado
+        content = chat_completion.choices[0].message.content.strip()
 
+        # Intenta decodificar JSON (si el modelo responde en JSON)
         try:
-            return json.loads(content)
+            parsed = json.loads(content)
+            if "reply" in parsed:
+                return parsed
+            else:
+                return {"reply": content, "action": "none"}
         except Exception:
             return {"reply": content, "action": "none"}
 
     except Exception as e:
-        print("Error en Groq:", e)
+        print("❌ Error en Groq:", e)
         return {"reply": "Error procesando con Groq", "action": "none"}
-
 
 
 # --------------------------
