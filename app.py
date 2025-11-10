@@ -98,17 +98,14 @@ def call_minimax_stt(audio_file):
 # Función: LLM (Mistral)
 # --------------------------
 def call_groq_llm(user_text):
-    import requests, json, os
+    from groq import Groq
+    import os, json
+
     api_key = os.getenv("GROQ_API_KEY")
-
     if not api_key:
-        print("⚠️ Falta GROQ_API_KEY en entorno")
-        return {"reply": "No hay clave de API configurada para Groq.", "action": "none"}
+        return {"reply": "Falta GROQ_API_KEY", "action": "none"}
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+    client = Groq(api_key=api_key)
 
     prompt = f"""
 Tu rol: asistente turístico peruano para la plataforma PerúGo.
@@ -123,30 +120,28 @@ Devuelve SOLO JSON con:
 }}
     """
 
-    data = {
-        "model": "mixtral-8x7b-32768",
-        "messages": [
-            {"role": "system", "content": "Eres un asistente experto en turismo del Perú."},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.5,
-        "max_tokens": 300
-    }
-
     try:
-        r = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                          headers=headers, json=data)
-        r.raise_for_status()
-        response = r.json()
-        content = response["choices"][0]["message"]["content"]
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "Eres un asistente experto en turismo del Perú."},
+                {"role": "user", "content": prompt},
+            ],
+            model="llama-3.3-70b-versatile",  # Modelo más reciente y potente
+            temperature=0.5,
+            max_tokens=400,
+        )
+
+        content = chat_completion.choices[0].message.content
 
         try:
             return json.loads(content)
         except Exception:
             return {"reply": content, "action": "none"}
+
     except Exception as e:
         print("Error en Groq:", e)
         return {"reply": "Error procesando con Groq", "action": "none"}
+
 
 
 # --------------------------
