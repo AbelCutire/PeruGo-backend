@@ -237,11 +237,18 @@ def process_text():
         return jsonify({"error": "No se recibió texto"}), 400
 
     llm_output = call_groq_llm(user_text)
-    llm_text = llm_output.get("reply", "No se pudo generar respuesta.")
+
+    # ✅ Extraer solo el texto del campo reply,
+    #    incluso si call_groq_llm devuelve un diccionario completo
+    if isinstance(llm_output, dict):
+        llm_text = llm_output.get("reply", str(llm_output))
+    else:
+        llm_text = str(llm_output)
 
     tts_audio = call_minimax_tts(llm_text)
     audio_base64 = base64.b64encode(tts_audio).decode("utf-8") if tts_audio else None
 
+    # ✅ Aquí garantizamos que text_response sea SIEMPRE una cadena
     return jsonify({
         "text_response": llm_text,
         "audio_base64": audio_base64
