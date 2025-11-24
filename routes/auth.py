@@ -39,25 +39,25 @@ def register():
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
-    """Login de usuario"""
+    """Login de usuario - solo requiere email y contraseña"""
     data = request.get_json() or {}
     email = data.get("email", "").strip().lower()
-    username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     
-    if not all([email, username, password]):
-        return jsonify({"error": "Faltan credenciales"}), 400
+    # Validar que se recibieron los datos mínimos
+    if not email or not password:
+        return jsonify({"error": "Email y contraseña son requeridos"}), 400
     
+    # Buscar usuario por email
     user = User.query.filter_by(email=email).first()
     if not user:
-        return jsonify({"error": "Usuario no encontrado"}), 404
+        return jsonify({"error": "Credenciales incorrectas"}), 401
     
-    if user.username != username:
-        return jsonify({"error": "Nombre de usuario incorrecto"}), 401
-    
+    # Verificar contraseña
     if not verify_password(password, user.password_hash):
-        return jsonify({"error": "Contraseña incorrecta"}), 401
+        return jsonify({"error": "Credenciales incorrectas"}), 401
     
+    # Login exitoso - generar token
     token = create_jwt(user.id, user.email)
     return jsonify({
         "token": token,
