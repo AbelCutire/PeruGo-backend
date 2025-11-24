@@ -3,7 +3,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npm start",
+    "startCommand": "cd backend && gunicorn app:app --workers 4 --bind 0.0.0.0:$PORT",
     "restartPolicyType": "ON_FAILURE"
   }
 }
