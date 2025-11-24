@@ -2,17 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copiar requirements
+# Copiar e instalar dependencias
 COPY requirements.txt .
-
-# Instalar dependencias
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar todo el código
+# Copiar código
 COPY . .
 
-# Puerto
+# Exponer puerto
 EXPOSE 8080
 
-# Comando de inicio
-CMD gunicorn app:app --bind 0.0.0.0:$PORT --workers 4 --timeout 120
+# Comando de inicio con expansión correcta de variable
+CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT:-8080} --workers 4 --timeout 120"]
