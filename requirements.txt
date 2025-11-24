@@ -11,7 +11,4 @@ groq
 rdflib
 mysql-connector-python
 gunicorn
-
-
-
-
+cryptography
