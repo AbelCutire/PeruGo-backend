@@ -2,8 +2,12 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from models import User
 from services.auth_service import (
-    hash_password, verify_password, create_jwt, 
-    create_password_reset_token, consume_reset_token
+    hash_password,
+    verify_password,
+    create_jwt,
+    create_password_reset_token,
+    consume_reset_token,
+    decode_jwt,
 )
 from services.email_service import send_reset_email
 from config import Config
@@ -66,6 +70,45 @@ def login():
             "email": user.email,
             "username": user.username
         }
+    }), 200
+
+
+@auth_bp.route("/profile", methods=["PATCH"])
+def update_profile():
+    """Actualizar datos básicos del perfil (actualmente solo username)"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Token no proporcionado"}), 401
+
+    token = auth_header.split(" ", 1)[1].strip()
+    payload = decode_jwt(token)
+    if not payload:
+        return jsonify({"error": "Token inválido o expirado"}), 401
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return jsonify({"error": "Token inválido"}), 401
+
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+
+    if not username:
+        return jsonify({"error": "El nombre de usuario es requerido"}), 400
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    user.username = username
+    db.session.commit()
+
+    return jsonify({
+        "message": "Perfil actualizado correctamente",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+        },
     }), 200
 
 @auth_bp.route("/recover", methods=["POST"])
