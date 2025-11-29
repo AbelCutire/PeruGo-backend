@@ -26,7 +26,7 @@ Equipo PeruGo
 """)
     
     try:
-        with smtplib.SMTP(Config.MAIL_HOST, Config.MAIL_PORT) as server:
+        with smtplib.SMTP(Config.MAIL_HOST, Config.MAIL_PORT, timeout=5) as server:
             server.starttls()
             server.login(Config.MAIL_USER, Config.MAIL_PASS)
             server.send_message(msg)
@@ -57,7 +57,7 @@ Equipo PeruGo
 """)
 
     try:
-        with smtplib.SMTP(Config.MAIL_HOST, Config.MAIL_PORT) as server:
+        with smtplib.SMTP(Config.MAIL_HOST, Config.MAIL_PORT, timeout=5) as server:
             server.starttls()
             server.login(Config.MAIL_USER, Config.MAIL_PASS)
             server.send_message(msg)
