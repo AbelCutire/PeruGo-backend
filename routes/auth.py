@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template_string
 from extensions import db
 from models import User, EmailVerificationToken
 from services.auth_service import (
@@ -177,6 +177,58 @@ def verify_email():
     db.session.commit()
 
     return jsonify({"message": "Correo verificado correctamente"}), 200
+
+
+@auth_bp.route("/verify-email", methods=["GET"])
+def verify_email_page():
+    """Ruta HTML sencilla para verificar correo desde el enlace del email"""
+    token = (request.args.get("token") or "").strip()
+
+    if not token:
+        message = "Token de verificación no proporcionado."
+        success = False
+    else:
+        evt = EmailVerificationToken.query.filter_by(token=token, used=False).first()
+        if not evt:
+            message = "El enlace de verificación es inválido o ya fue utilizado."
+            success = False
+        else:
+            user = evt.user
+            if not user:
+                message = "Usuario asociado al token no encontrado."
+                success = False
+            else:
+                user.is_verified = True
+                evt.used = True
+                db.session.commit()
+                message = "Tu correo ha sido verificado correctamente. Ya puedes iniciar sesión en la app."
+                success = True
+
+    html = """
+    <!doctype html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <title>Verificación de correo - PeruGo</title>
+        <style>
+          body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e5e7eb; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+          .card { background: #020617; padding: 24px 28px; border-radius: 16px; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.6); max-width: 420px; text-align: center; border: 1px solid #1f2937; }
+          h1 { font-size: 22px; margin-bottom: 12px; }
+          p { font-size: 15px; line-height: 1.6; }
+          .ok { color: #4ade80; }
+          .error { color: #f97373; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1 class="{{ 'ok' if success else 'error' }}">{{ 'Correo verificado' if success else 'Verificación fallida' }}</h1>
+          <p>{{ message }}</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    return render_template_string(html, success=success, message=message)
 
 @auth_bp.route("/reset-password", methods=["POST"])
 def reset_password():
