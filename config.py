@@ -16,4 +16,9 @@ class Config:
     MAIL_USER = os.getenv("MAIL_USER")
     MAIL_PASS = os.getenv("MAIL_PASS")
     MAIL_FROM = os.getenv("MAIL_FROM", os.getenv("MAIL_USER"))
-    FRONTEND_BASE = os.getenv("FRONTEND_BASE", "https://perugo.vercel.app")
+
+    # Frontend base (para enlaces de verificación de correo)
+    FRONTEND_BASE = os.getenv(
+        "FRONTEND_BASE",
+        "https://perugo-backend-production.up.railway.app",
+    )
