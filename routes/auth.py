@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
-from models import User
+from models import User, EmailVerificationToken
 from services.auth_service import (
     hash_password,
     verify_password,
@@ -9,7 +9,7 @@ from services.auth_service import (
     consume_reset_token,
     decode_jwt,
 )
-from services.email_service import send_reset_email
+from services.email_service import send_reset_email, send_verification_email
 from config import Config
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -27,18 +27,31 @@ def register():
     
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "El correo ya está registrado"}), 409
-    
+
     user = User(
-        email=email, 
-        username=username, 
-        password_hash=hash_password(password)
+        email=email,
+        username=username,
+        password_hash=hash_password(password),
+        is_verified=False,
     )
     db.session.add(user)
     db.session.commit()
-    
+
+    token = secrets.token_urlsafe(48)
+    evt = EmailVerificationToken(
+        user_id=user.id,
+        token=token,
+        used=False,
+    )
+    db.session.add(evt)
+    db.session.commit()
+
+    verify_link = f"{Config.FRONTEND_BASE}/verify-email?token={token}"
+    send_verification_email(user.email, verify_link)
+
     return jsonify({
-        "message": "Usuario creado exitosamente",
-        "user_id": user.id
+        "message": "Usuario creado exitosamente. Revisa tu correo para verificar la cuenta.",
+        "user_id": user.id,
     }), 201
 
 @auth_bp.route("/login", methods=["POST"])
@@ -141,6 +154,29 @@ def recover():
     return jsonify({
         "message": "Si el correo existe, recibirás un enlace de recuperación"
     }), 200
+
+
+@auth_bp.route("/verify-email", methods=["POST"])
+def verify_email():
+    data = request.get_json() or {}
+    token = (data.get("token") or "").strip()
+
+    if not token:
+        return jsonify({"error": "Token requerido"}), 400
+
+    evt = EmailVerificationToken.query.filter_by(token=token, used=False).first()
+    if not evt:
+        return jsonify({"error": "Token inválido o ya usado"}), 400
+
+    user = evt.user
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    user.is_verified = True
+    evt.used = True
+    db.session.commit()
+
+    return jsonify({"message": "Correo verificado correctamente"}), 200
 
 @auth_bp.route("/reset-password", methods=["POST"])
 def reset_password():
