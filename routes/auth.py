@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, render_template_string
 from extensions import db
 from models import User, EmailVerificationToken
+import secrets
 from services.auth_service import (
     hash_password,
     verify_password,
