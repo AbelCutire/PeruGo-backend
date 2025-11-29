@@ -34,3 +34,34 @@ Equipo PeruGo
     except Exception as e:
         print(f"❌ Error enviando email: {e}")
         return False
+
+
+def send_verification_email(to_email: str, verify_link: str):
+    msg = EmailMessage()
+    msg["Subject"] = "Verifica tu correo - PeruGo"
+    msg["From"] = Config.MAIL_FROM
+    msg["To"] = to_email
+
+    msg.set_content(f"""
+Hola,
+
+Gracias por registrarte en PeruGo.
+
+Por favor, verifica tu correo haciendo clic en el siguiente enlace:
+{verify_link}
+
+Si no creaste esta cuenta, puedes ignorar este mensaje.
+
+Saludos,
+Equipo PeruGo
+""")
+
+    try:
+        with smtplib.SMTP(Config.MAIL_HOST, Config.MAIL_PORT) as server:
+            server.starttls()
+            server.login(Config.MAIL_USER, Config.MAIL_PASS)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"❌ Error enviando email de verificación: {e}")
+        return False
