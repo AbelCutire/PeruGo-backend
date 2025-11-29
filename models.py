@@ -9,6 +9,7 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     username = db.Column(db.String(150), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    is_verified = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -23,3 +24,15 @@ class PasswordResetToken(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     user = db.relationship("User", backref=db.backref("reset_tokens", lazy="dynamic"))
+
+
+class EmailVerificationToken(db.Model):
+    __tablename__ = "email_verification_tokens"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
+    token = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    used = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref=db.backref("email_verification_tokens", lazy="dynamic"))
