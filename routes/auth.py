@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify, render_template_string
 from extensions import db
 from models import User, EmailVerificationToken
-import secrets
 from services.auth_service import (
     hash_password,
     verify_password,
@@ -10,7 +9,7 @@ from services.auth_service import (
     consume_reset_token,
     decode_jwt,
 )
-from services.email_service import send_reset_email, send_verification_email
+from services.email_service import send_reset_email
 from config import Config
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -33,26 +32,21 @@ def register():
         email=email,
         username=username,
         password_hash=hash_password(password),
-        is_verified=False,
+        is_verified=True,
     )
     db.session.add(user)
     db.session.commit()
 
-    token = secrets.token_urlsafe(48)
-    evt = EmailVerificationToken(
-        user_id=user.id,
-        token=token,
-        used=False,
-    )
-    db.session.add(evt)
-    db.session.commit()
-
-    verify_link = f"{Config.FRONTEND_BASE}/verify-email?token={token}"
-    send_verification_email(user.email, verify_link)
+    # Generar token JWT para iniciar sesión inmediatamente después de registrarse
+    token = create_jwt(user.id, user.email)
 
     return jsonify({
-        "message": "Usuario creado exitosamente. Revisa tu correo para verificar la cuenta.",
-        "user_id": user.id,
+        "token": token,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+        },
     }), 201
 
 @auth_bp.route("/login", methods=["POST"])
