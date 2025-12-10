@@ -5,6 +5,8 @@ import secrets
 from config import Config
 from extensions import db
 from models import User, PasswordResetToken
+from functools import wraps
+from flask import request, jsonify
 
 def hash_password(password: str) -> str:
     """Hashea una contraseña usando bcrypt"""
@@ -56,3 +58,44 @@ def consume_reset_token(token_str: str):
     prt.used = True
     db.session.commit()
     return prt.user, None
+
+def token_required(f):
+    """
+    Decorador para proteger rutas. 
+    Verifica que el header 'Authorization' contenga un JWT válido.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        
+        # 1. Buscar el token en el header Authorization: Bearer <token>
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+        
+        if not token:
+            return jsonify({'message': 'Token de autenticación faltante'}), 401
+        
+        try:
+            # 2. Decodificar y validar el token
+            data = jwt.decode(token, Config.JWT_SECRET, algorithms=[Config.JWT_ALGORITHM])
+            
+            # 3. Buscar el usuario en la BD (data['sub'] suele ser el user_id)
+            current_user = User.query.filter_by(id=data['sub']).first()
+            
+            if not current_user:
+                return jsonify({'message': 'Usuario no encontrado o token inválido'}), 401
+                
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'El token ha expirado, por favor inicia sesión nuevamente'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'message': 'Token inválido'}), 401
+        except Exception as e:
+            print(f"Error auth: {e}")
+            return jsonify({'message': 'Error de autenticación'}), 401
+            
+        # 4. Pasar el usuario actual a la función de la ruta
+        return f(current_user, *args, **kwargs)
+    
+    return decorated
