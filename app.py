@@ -11,7 +11,10 @@ from extensions import db, migrate
 from routes.auth import auth_bp
 from routes.process import process_bp
 from generate_rdf import rdf_bp
-from routes.planes import planes_bp  # <--- ¡FALTABA ESTA LÍNEA!
+from routes.planes import planes_bp
+
+# Importar modelos para que SQLAlchemy los reconozca al crear tablas
+import models  # <--- IMPORTANTE: Asegura que los modelos estén cargados
 
 load_dotenv()
 
@@ -30,7 +33,17 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(process_bp)
     app.register_blueprint(rdf_bp)
-    app.register_blueprint(planes_bp) # <--- Ahora sí funcionará porque está importado
+    app.register_blueprint(planes_bp)
+    
+    # --- CREACIÓN AUTOMÁTICA DE TABLAS ---
+    # Esto revisa si las tablas existen; si no, las crea.
+    with app.app_context():
+        try:
+            db.create_all()
+            print("✅ Tablas de base de datos verificadas/creadas correctamente.")
+        except Exception as e:
+            print(f"❌ Error al crear tablas: {e}")
+    # -------------------------------------
     
     @app.route("/")
     def home():
