@@ -29,6 +29,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(process_bp)
     app.register_blueprint(rdf_bp)
+    app.register_blueprint(planes_bp)
     
     @app.route("/")
     def home():
