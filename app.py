@@ -11,6 +11,7 @@ from extensions import db, migrate
 from routes.auth import auth_bp
 from routes.process import process_bp
 from generate_rdf import rdf_bp
+from routes.planes import planes_bp  # <--- ¡FALTABA ESTA LÍNEA!
 
 load_dotenv()
 
@@ -29,7 +30,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(process_bp)
     app.register_blueprint(rdf_bp)
-    app.register_blueprint(planes_bp)
+    app.register_blueprint(planes_bp) # <--- Ahora sí funcionará porque está importado
     
     @app.route("/")
     def home():
@@ -39,7 +40,8 @@ def create_app():
             "endpoints": {
                 "auth": "/auth/register, /auth/login, /auth/recover, /auth/reset-password",
                 "llm": "/process",
-                "rdf": "/rdf"
+                "rdf": "/rdf",
+                "planes": "/api/planes"
             }
         })
     
